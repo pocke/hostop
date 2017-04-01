@@ -21,6 +21,11 @@ Usage
 $ hostop twitter.com --after 8h
 ```
 
+Known Issue
+------
+
+You should restart your browser to apply the stopping. Maybe a browser caches DNS.
+
 License
 -------
 
