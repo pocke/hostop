@@ -2,7 +2,11 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
+	"regexp"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ogier/pflag"
@@ -34,15 +38,16 @@ func Main(args []string) error {
 }
 
 type CmdArgs struct {
-	After   string
+	After   time.Duration
 	ResetID string
 	Hosts   []string
+	BinPath string
 }
 
 func ParseArgs(args []string) (*CmdArgs, error) {
 	fs := pflag.NewFlagSet(args[0], pflag.ContinueOnError)
 	c := new(CmdArgs)
-	fs.StringVarP(&c.After, "after", "a", "", "")
+	fs.DurationVarP(&c.After, "after", "a", 1*time.Hour, "")
 	fs.StringVarP(&c.ResetID, "reset", "", "", "")
 
 	err := fs.Parse(args[1:])
@@ -51,10 +56,28 @@ func ParseArgs(args []string) (*CmdArgs, error) {
 	}
 
 	c.Hosts = fs.Args()
+	c.BinPath = args[0]
 	return c, nil
 }
 
 func Reset(c *CmdArgs) error {
+	time.Sleep(c.After)
+
+	header := Header(c.ResetID)
+	re, err := regexp.Compile(fmt.Sprintf("%s[^#]*%s", header, Footer))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	hosts, err := ioutil.ReadFile(Hosts)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	content := re.ReplaceAll(hosts, []byte{})
+	err = ioutil.WriteFile(Hosts, content, Perm)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	return nil
 }
 
@@ -77,7 +100,8 @@ func Stop(c *CmdArgs) error {
 		return errors.WithStack(err)
 	}
 
-	return nil
+	cmd := exec.Command(c.BinPath, "--after="+c.After.String(), "--reset="+id)
+	return cmd.Start()
 }
 
 func Header(id string) string {
